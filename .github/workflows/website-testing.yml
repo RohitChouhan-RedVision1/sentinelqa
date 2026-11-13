@@ -1,0 +1,73 @@
+name: Website Testing
+
+run-name: Sentinel QA ${{ inputs.run_id }}
+
+on:
+  workflow_dispatch:
+    inputs:
+      run_id:
+        description: "MongoDB test run id"
+        required: true
+        type: string
+      target_url:
+        description: "Authorized website origin"
+        required: true
+        type: string
+      categories:
+        description: "JSON array of selected categories"
+        required: true
+        type: string
+      page_urls:
+        description: "JSON array of selected page URLs"
+        required: false
+        default: "[]"
+        type: string
+      test_case_ids:
+        description: "JSON array of selected test case ids"
+        required: false
+        default: "[]"
+        type: string
+      callback_url:
+        description: "Next.js callback endpoint"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  website-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      QA_RUN_ID: ${{ inputs.run_id }}
+      QA_TARGET_URL: ${{ inputs.target_url }}
+      QA_CATEGORIES: ${{ inputs.categories }}
+      QA_PAGE_URLS: ${{ inputs.page_urls }}
+      QA_TEST_CASE_IDS: ${{ inputs.test_case_ids }}
+      QA_CALLBACK_URL: ${{ inputs.callback_url }}
+      QA_CALLBACK_SECRET: ${{ secrets.QA_CALLBACK_SECRET }}
+      QA_MAX_PAGES: 25
+      QA_REQUEST_TIMEOUT_MS: 12000
+    steps:
+      - name: Checkout QA runner
+        uses: actions/checkout@v4
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Install dependencies
+        run: npm ci
+      - name: Install Playwright Chromium
+        run: npx playwright install --with-deps chromium
+      - name: Execute authorized browser tests
+        run: node scripts/qa/run.mjs
+      - name: Upload screenshots and reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sentinel-qa-${{ inputs.run_id }}
+          path: artifacts/
+          if-no-files-found: warn
+          retention-days: 14
